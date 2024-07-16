@@ -1,58 +1,102 @@
 
 # CryptoGPT: Crypto Twitter Sentiment Analysis
+![](screenshot.png)
+Welcome to CryptoGPT! 
 
-Welcome to CryptoGPT! This project combines Streamlit, ChatGPT, and LangChain to analyze the sentiment of tweets related to cryptocurrencies. By utilizing Streamlit, we'll create a user-friendly interface that allows us to interact with our sentiment analysis application effortlessly.
+This project combines Streamlit, ChatGPT, and LangChain to analyze the sentiment of tweets related to cryptocurrencies. By utilizing Streamlit, it'll create a user-friendly interface that allows us to interact with sentiment analysis application effortlessly.
 
 ## Project Setup
 
-We'll use Python 3.11.3 for this project, and the directory structure will be as follows:
+Use Python 3.11.3 for this project, and the directory structure will be as follows:
+```bash
+.
+├── .flake8
+├── .gitignore
+├── .python-version
+├── .vscode
+│   └── settings.json
+├── main.py
+├── requirements.txt
+└── sentiment_analyzer.py
+```
 
 ### Libraries
 
 Install the required libraries:
 
 ```bash
-pip install streamlit langchain tweety plotly
+pip install streamlit plotly
+pip install langchain-community langchain-core
+pip install https://github.com/mahrtayyab/tweety/archive/main.zip --upgrade
 ```
 
 ### Config
 
-We'll use `black` and `isort` for formatting and import sorting. Additionally, we'll configure VSCode for the project.
+Use `black` and `isort` for formatting and import sorting. Additionally, we'll configure VSCode for the project.
 
 ### Streamlit
 
-Streamlit is an open-source Python library designed for building custom web applications with ease. It allows us to create interactive and visually appealing data-driven applications using Python. With Streamlit, we can quickly transform our data analysis code into shareable web applications, making it ideal for our sentiment analysis project. Let's leverage the power of Streamlit to create a seamless and user-friendly interface for analyzing the sentiment of cryptocurrency tweets.
+Streamlit is an open-source Python library designed for building custom web applications with ease. It can create interactive and visually appealing data-driven applications using Python. With Streamlit, we can quickly transform our data analysis code into shareable web applications, making it ideal for our sentiment analysis project.
 
 ## Get Tweets
 
-To fetch tweets for our analysis, we'll make use of the `tweety` library. This library interacts with Twitter's frontend API to retrieve the desired tweets.
+To fetch tweets for our analysis, we'll make use of the `tweety` library. This library interacts with Twitter's frontend API to retrieve the desired tweets. Take input user "elonmusk" as example:
+```
+from tweety import Twitter
+twitter_client = Twitter("session")
 
+tweets = twitter_client ("elonmusk")
+for tweet in tweets:
+    print(tweet.text)
+    print()
+```
 ### Clean Tweets
 
-We can remove unnecessary elements like URLs, new lines, and multiple spaces from the tweets, as they are not relevant for our sentiment analysis and will save tokens for ChatGPT.
+Remove unnecessary elements like URLs, new lines, and multiple spaces from the tweets, as they are not relevant for our sentiment analysis and will save tokens for ChatGPT.
 
 ```python
 import re
 
-def clean_tweet(text):
-    text = re.sub(r"http\S+|www\S+|https\S+", '', text, flags=re.MULTILINE)
-    text = re.sub(r'
-', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+def clean_tweet(text: str) -> str:
+    text = re.sub(r"http\S+", "", text)
+    text = re.sub(r"www.\S+", "", text)
+    return re.sub(r"\s+", " ", text)
 ```
 
 ### Create DataFrame
 
-We'll use a dataframe to organize and easily visualize the tweets.
+Use a dataframe to organize and easily visualize the tweets.
 
 ```python
 import pandas as pd
 
-def create_dataframe_from_tweets(tweets):
-    df = pd.DataFrame([{'date': tweet.date, 'author': tweet.author, 'text': clean_tweet(tweet.text), 'views': tweet.views} for tweet in tweets])
+def create_dataframe_from_tweets(tweets: List[Tweet]) -> pd.DataFrame:
+    rows = []
+    for tweet in tweets:
+        clean_text = clean_tweet(tweet.text)
+        if len(clean_text) == 0:
+            continue
+        rows.append(
+            {
+                "id": tweet.id,
+                "text": clean_text,
+                "author": tweet.author.username,
+                "date": str(tweet.date.date()),
+                "created_at": tweet.date,
+                "views": tweet.views,
+            }
+        )
+ 
+    df = pd.DataFrame(
+        rows,
+        columns=["id", "text", "author", "date", "views", "created_at"]
+    )
+    df.set_index("id", inplace=True)
     return df
 ```
+
+## Tweet Data UI
+Our UI will have a straightforward design, with a split-screen layout consisting of two columns. The left column will be dedicated to loading the data. It will require two pieces of information from the user - the OpenAI API key and the Twitter handles. And there is a section displaying the tweets in a dataframe format using the create_dataframe_from_tweets function. Please check main.py for details.
 
 ## Sentiment Analysis
 
@@ -63,47 +107,44 @@ from langchain.llms import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 
-def analyze_sentiment(tweets, twitter_handle):
-    llm = ChatOpenAI(model="text-davinci-002")
-    prompt = PromptTemplate("Analyze the sentiment of the following tweets from {twitter_handle}: {tweets}")
-    chain = LLMChain(llm=llm, prompt=prompt)
-    response = chain.run({"twitter_handle": twitter_handle, "tweets": tweets})
-    sentiment = json.loads(response)
-    return sentiment
+def analyze_sentiment(twitter_handle: str, tweets: List[Tweet]) -> Dict[str, int]:
+    chat_gpt = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo")
+    prompt = PromptTemplate(
+        input_variables=["twitter_handle", "tweets"], template=PROMPT_TEMPLATE)
+ 
+    sentiment_chain = LLMChain(llm=chat_gpt, prompt=prompt)
+    response = sentiment_chain(
+        {
+            "twitter_handle": twitter_handle,
+            "tweets": create_tweet_list_for_prompt(tweets, twitter_handle),
+        }
+    )
+    return json.loads(response["text"])
 ```
+
+
 
 ## Visualize Sentiment
 
 We'll utilize Plotly to visualize the sentiment. We can generate a line chart to visualize the sentiment trends. Additionally, we'll display a dataframe that contains the sentiment data.
 
 ```python
-import plotly.express as px
-
-def plot_sentiment(df):
-    fig = px.line(df, x='date', y='sentiment', title='Sentiment Over Time')
-    fig.show()
+with col2:
+    sentiment_df = create_sentiment_dataframe(st.session_state.author_sentiment)
+    if not sentiment_df.empty:
+        fig = px.line(
+            sentiment_df,
+            x=sentiment_df.index,
+            y=sentiment_df.columns,
+            labels={"date": "Date", "value": "Sentiment"},
+        )
+        fig.update_layout(yaxis_range=[0, 100])
+        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+ 
+        st.dataframe(sentiment_df, use_container_width=True)
 ```
 
-## Streamlit App
 
-Finally, we'll create the Streamlit app to interact with our sentiment analysis pipeline.
+## Conclusion and Futrue Improvements
 
-```python
-import streamlit as st
-
-st.title("Crypto Twitter Sentiment Analysis")
-twitter_handle = st.text_input("Enter Twitter Handle", "")
-if twitter_handle:
-    tweets = get_tweets(twitter_handle)
-    df = create_dataframe_from_tweets(tweets)
-    sentiment = analyze_sentiment(tweets, twitter_handle)
-    df['sentiment'] = df['date'].map(sentiment)
-    plot_sentiment(df)
-    st.write(df)
-```
-
-## Conclusion
-
-In this tutorial, we covered the process of sentiment analysis on cryptocurrency tweets using LangChain and ChatGPT. We learned how to download and preprocess tweets, visualize sentiment data using Plotly, and create a Streamlit application to interact with the sentiment analysis pipeline.
-
-The integration of Streamlit allows us to create an interactive and intuitive interface for users to input Twitter handles, view sentiment analysis results, and visualize the sentiment trends over time.
+In this project, I developed a straightforward Streamlit application to interact with a crypto sentiment analysis pipeline, effectively assisting users in reviewing various feeds and daily posts about cryptocurrency. The application includes features for downloading and preprocessing tweets, computing sentiment scores using LangChain and the ChatGPT API, and visualizing sentiment data within the Streamlit app. However, the analysis is constrained by the limitations of the Tweety API, which restricts the number of tweets that can be retrieved for each input author, hindering the ability to perform a comprehensive real-time sentiment analysis. Future improvements include selecting and evaluating an appropriate LLM model and adding functionality to delete previous inputs.
