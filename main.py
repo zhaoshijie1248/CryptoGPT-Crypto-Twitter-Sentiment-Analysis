@@ -1,6 +1,5 @@
 
 import os
-import random
 from datetime import datetime
 from typing import Dict
 
@@ -45,8 +44,7 @@ def create_sentiment_dataframe(tweets: list) -> pd.DataFrame:
             str_date = date.strftime("%Y-%m-%d")
             if str_date in sentiments:
                 author_sentiment.append(sentiments[str_date])
-            else:
-                author_sentiment.append(random.randint(50, 99))
+           
         chart_data[author] = author_sentiment
 
     sentiment_df = pd.DataFrame(chart_data)
