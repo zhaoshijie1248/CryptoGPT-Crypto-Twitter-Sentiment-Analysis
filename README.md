@@ -3,7 +3,7 @@
 ![](screenshot.png)
 Welcome to CryptoGPT! 
 
-This project combines Streamlit, ChatGPT, and LangChain to analyze the sentiment of tweets related to cryptocurrencies. By utilizing Streamlit, it'll create a user-friendly interface that allows us to interact with sentiment analysis application effortlessly.
+This project aims to provide a user-friendly web application to analyze the sentiment of posts from crypto-related Key Opinion Leaders (KOLs), helping users make informed decisions effectively. Leveraging prompt engineering, I created prompt templates for ChatGPT and utilized the LangChain API to automatically compute sentiment score. The application visualizes the data and trend line charts using Streamlit, offering an intuitive interface for easy interaction with the sentiment analysis tool. This ensures a seamless and effortless user experience, enabling users to engage with the sentiment analysis application efficiently.
 
 ## Project Setup
 
@@ -126,7 +126,7 @@ def analyze_sentiment(twitter_handle: str, tweets: List[Tweet]) -> Dict[str, int
 
 ## Visualize Sentiment
 
-We'll utilize Plotly to visualize the sentiment. We can generate a line chart to visualize the sentiment trends. Additionally, we'll display a dataframe that contains the sentiment data.
+Utilize st.plotly_chart to visualize the sentiment. We can generate a line chart to visualize the sentiment trends. 
 
 ```python
 with col2:
